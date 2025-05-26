@@ -15,11 +15,11 @@
         return;
       }
   
-      // Aqui você faria a chamada para o backend via fetch (simulado)
+      //  chamada para o backend via fetch (simulado)
       const email = form.email.value.trim();
       const password = form.password.value.trim();
   
-      // Simulação simples: se email e senha forem "admin"
+      // Simulação
       if (email === 'admin@admin.com' && password === 'admin') {
         // Redireciona para home.html 
         window.location.href = 'home.html';
