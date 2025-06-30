@@ -128,11 +128,26 @@
 
   // Buscar nível da ração do backend
   async function fetchFoodLevel() {
+    const token = localStorage.getItem('authToken'); // Recupera o token do localStorage
+    if (!token) {
+      alert('Você precisa estar autenticado!');
+      return;
+    }
+
     try {
-      const res = await fetch('http://localhost:3000/api/food-level');
+      const res = await fetch('http://localhost:3000/api/food-level', {
+        headers: {
+          'Authorization': `Bearer ${token}`, // Envia o token no cabeçalho
+        },
+      });
+
       const data = await res.json();
-      currentFoodLevel = data.level;
-      updateFoodLevel(currentFoodLevel);
+      if (res.ok) {
+        currentFoodLevel = data.level;
+        updateFoodLevel(currentFoodLevel);
+      } else {
+        alert(data.message || 'Erro ao buscar o nível da ração');
+      }
     } catch {
       feedResult.textContent = 'Erro ao buscar o nível da ração.';
       feedResult.className = 'alert alert-danger';
@@ -142,10 +157,19 @@
 
   // Enviar comando para liberar ração
   async function feedNow() {
+    const token = localStorage.getItem('authToken'); // Recupera o token do localStorage
+    if (!token) {
+      alert('Você precisa estar autenticado!');
+      return;
+    }
+
     try {
       const res = await fetch('http://localhost:3000/api/feed', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // Envia o token no cabeçalho
+        },
       });
       if (!res.ok) {
         const err = await res.json();
