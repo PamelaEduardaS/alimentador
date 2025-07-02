@@ -13,12 +13,11 @@ const PORT = process.env.PORT || 3000;
 
 // Configuração do PostgreSQL
 const pool = new Pool({
-  host: process.env.DB_HOST,  // Endereço do banco de dados
-  port: process.env.DB_PORT,  // Porta do banco de dados
-  user: process.env.DB_USER,  // Usuário do banco de dados
-  password: process.env.DB_PASSWORD, // Senha do banco de dados
-  database: process.env.DB_DATABASE, // Nome do banco de dados
-  schema: 'public',  // Especificando o schema 'public' (se necessário)
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
 });
 
 // Teste de conexão com o banco de dados
@@ -86,7 +85,6 @@ app.get('/api/food-level', authenticateToken, async (req, res) => {
 // Rota para liberar ração (protegida por autenticação)
 app.post('/api/feed', authenticateToken, async (req, res) => {
   try {
-    // Obter o nível atual de ração
     const result = await pool.query('SELECT nivel FROM nivel_racao ORDER BY atualizado_em DESC LIMIT 1');
     let currentFoodLevel = result.rows[0]?.nivel || 0;
 
@@ -97,7 +95,6 @@ app.post('/api/feed', authenticateToken, async (req, res) => {
     currentFoodLevel -= 10;
     if (currentFoodLevel < 0) currentFoodLevel = 0;
 
-    // Atualizar o nível de ração na tabela
     await pool.query('INSERT INTO nivel_racao (nivel) VALUES($1)', [currentFoodLevel]);
 
     res.json({ message: 'Ração liberada com sucesso!', level: currentFoodLevel });
@@ -128,10 +125,56 @@ app.post('/api/schedules', authenticateToken, async (req, res) => {
 app.get('/api/schedules', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM horarios_programados ORDER BY horario ASC');
-    res.json({ schedules: result.rows });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Nenhum horário encontrado' });
+    }
+    res.json({ schedules: result.rows });  // Certifique-se de que os horários estão sendo retornados com o 'id'
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erro ao buscar horários programados' });
+  }
+});
+
+// Rota para atualizar horário programado
+app.put('/api/schedules', authenticateToken, async (req, res) => {
+  const { schedule_time, id } = req.body;
+
+  if (!schedule_time || !id) {
+    return res.status(400).json({ message: 'Horário ou ID não informados!' });
+  }
+
+  try {
+    // Verifique se o horário existe no banco antes de tentar atualizar
+    const result = await pool.query('SELECT * FROM horarios_programados WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Horário não encontrado para atualização!' });
+    }
+
+    // Se o horário for encontrado, procede com a atualização
+    await pool.query('UPDATE horarios_programados SET horario = $1 WHERE id = $2', [schedule_time, id]);
+
+    res.json({ message: 'Horário atualizado com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao atualizar horário' });
+  }
+});
+
+// Rota para excluir horário programado
+app.delete('/api/schedules/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'ID não informado!' });
+  }
+
+  try {
+    await pool.query('DELETE FROM horarios_programados WHERE id = $1', [id]);
+    res.json({ message: 'Horário excluído com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao excluir horário' });
   }
 });
 
