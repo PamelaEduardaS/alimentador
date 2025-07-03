@@ -3,8 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg'); // Importar a biblioteca pg para conectar ao PostgreSQL
-
+const axios = require('axios'); 
 const app = express();
+const bcrypt = require('bcrypt'); // Importa o bcrypt
 
 app.use(cors());              // Permite requisições de outras origens (frontend)
 app.use(express.json());      // Para interpretar JSON no corpo das requisições
@@ -96,6 +97,10 @@ app.post('/api/feed', authenticateToken, async (req, res) => {
     if (currentFoodLevel < 0) currentFoodLevel = 0;
 
     await pool.query('INSERT INTO nivel_racao (nivel) VALUES($1)', [currentFoodLevel]);
+
+     // Envia o comando para o ESP32 via HTTP para girar o servo motor
+    const esp32Ip = 'http://192.168.0.105/liberar';  // IP do ESP32
+    await axios.get(esp32Ip);  // Envia a requisição para liberar a ração no ESP32
 
     res.json({ message: 'Ração liberada com sucesso!', level: currentFoodLevel });
   } catch (error) {
