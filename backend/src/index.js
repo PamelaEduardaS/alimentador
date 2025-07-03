@@ -2,10 +2,10 @@ require('dotenv').config();  // Carrega as variáveis do arquivo .env
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');  // Importa o bcrypt para criptografar a senha
 const { Pool } = require('pg'); // Importar a biblioteca pg para conectar ao PostgreSQL
 const axios = require('axios'); 
 const app = express();
-const bcrypt = require('bcrypt'); // Importa o bcrypt
 
 app.use(cors());              // Permite requisições de outras origens (frontend)
 app.use(express.json());      // Para interpretar JSON no corpo das requisições
@@ -47,7 +47,6 @@ app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Busca o usuário no banco de dados
     const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
 
     if (result.rows.length === 0) {
@@ -56,16 +55,49 @@ app.post('/api/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // Verifica se a senha é válida (aqui seria necessário usar algo como bcrypt para comparar as senhas de forma segura)
-    if (password === user.senha) {  // Para produção, use bcrypt.compare() aqui
-      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-      return res.json({ message: 'Login bem-sucedido', token });
+    // Verifica se a senha é válida (compara a senha armazenada com a senha informada)
+    const isValidPassword = await bcrypt.compare(password, user.senha);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Credenciais inválidas' });
     }
 
-    res.status(401).json({ message: 'Credenciais inválidas' });
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    return res.json({ message: 'Login bem-sucedido', token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erro no servidor' });
+  }
+});
+
+// Rota para registrar um novo usuário
+app.post('/api/register', async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
+  }
+
+  try {
+    // Verifica se o e-mail já está registrado
+    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
+    if (result.rows.length > 0) {
+      return res.status(400).json({ message: 'Este e-mail já está cadastrado.' });
+    }
+
+    // Criptografa a senha
+    const salt = await bcrypt.genSalt(10);  // Gera o salt
+    const hashedPassword = await bcrypt.hash(password, salt);  // Criptografa a senha
+
+    // Insere o novo usuário no banco de dados
+    await pool.query(
+      'INSERT INTO usuarios (nome, email, senha) VALUES ($1, $2, $3)',
+      [name, email, hashedPassword]
+    );
+
+    res.status(201).json({ message: 'Usuário registrado com sucesso!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao registrar usuário' });
   }
 });
 
@@ -98,7 +130,7 @@ app.post('/api/feed', authenticateToken, async (req, res) => {
 
     await pool.query('INSERT INTO nivel_racao (nivel) VALUES($1)', [currentFoodLevel]);
 
-     // Envia o comando para o ESP32 via HTTP para girar o servo motor
+    // Envia o comando para o ESP32 via HTTP para girar o servo motor
     const esp32Ip = 'http://192.168.0.105/liberar';  // IP do ESP32
     await axios.get(esp32Ip);  // Envia a requisição para liberar a ração no ESP32
 
@@ -133,7 +165,7 @@ app.get('/api/schedules', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Nenhum horário encontrado' });
     }
-    res.json({ schedules: result.rows });  // Certifique-se de que os horários estão sendo retornados com o 'id'
+    res.json({ schedules: result.rows });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erro ao buscar horários programados' });
@@ -149,14 +181,12 @@ app.put('/api/schedules', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Verifique se o horário existe no banco antes de tentar atualizar
     const result = await pool.query('SELECT * FROM horarios_programados WHERE id = $1', [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Horário não encontrado para atualização!' });
     }
 
-    // Se o horário for encontrado, procede com a atualização
     await pool.query('UPDATE horarios_programados SET horario = $1 WHERE id = $2', [schedule_time, id]);
 
     res.json({ message: 'Horário atualizado com sucesso!' });
