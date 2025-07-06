@@ -131,7 +131,7 @@ app.post('/api/feed', authenticateToken, async (req, res) => {
     await pool.query('INSERT INTO nivel_racao (nivel) VALUES($1)', [currentFoodLevel]);
 
     // Envia o comando para o ESP32 via HTTP para girar o servo motor
-    const esp32Ip = 'http://192.168.0.105/liberar';  // IP do ESP32
+    const esp32Ip = 'http://192.168.86.8/liberar';  // IP do ESP32
     await axios.get(esp32Ip);  // Envia a requisição para liberar a ração no ESP32
 
     res.json({ message: 'Ração liberada com sucesso!', level: currentFoodLevel });
