@@ -69,37 +69,34 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Rota para registrar um novo usuário
-app.post('/api/register', async (req, res) => {
-  const { name, email, password } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: 'Todos os campos são obrigatórios' });
-  }
-
+// Função para verificar os agendamentos e liberar a ração automaticamente
+const checkAndFeed = async () => {
   try {
-    // Verifica se o e-mail já está registrado
-    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
-    if (result.rows.length > 0) {
-      return res.status(400).json({ message: 'Este e-mail já está cadastrado.' });
-    }
-
-    // Criptografa a senha
-    const salt = await bcrypt.genSalt(10);  // Gera o salt
-    const hashedPassword = await bcrypt.hash(password, salt);  // Criptografa a senha
-
-    // Insere o novo usuário no banco de dados
-    await pool.query(
-      'INSERT INTO usuarios (nome, email, senha) VALUES ($1, $2, $3)',
-      [name, email, hashedPassword]
+    // Verifica agendamentos com horários passados e que ainda não foram liberados
+    const result = await pool.query(
+      'SELECT * FROM horarios_programados WHERE horario <= NOW() AND status != $1 ORDER BY horario ASC LIMIT 1',
+      ['liberado']
     );
 
-    res.status(201).json({ message: 'Usuário registrado com sucesso!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erro ao registrar usuário' });
+    if (result.rows.length > 0) {
+      const schedule = result.rows[0];
+
+      // Envia o comando para o ESP32 via HTTP para girar o servo motor
+      const esp32Ip = 'http://192.168.1.7/liberar';  // IP do ESP32
+      await axios.get(esp32Ip);  // Envia a requisição para liberar a ração no ESP32
+
+      // Atualiza o status do agendamento para 'liberado'
+      await pool.query('UPDATE horarios_programados SET status = $1 WHERE id = $2', ['liberado', schedule.id]);
+
+      console.log(`Ração liberada automaticamente para o horário: ${schedule.horario}`);
+    }
+  } catch (error) {
+    console.error('Erro ao verificar os agendamentos:', error);
   }
-});
+};
+
+// Verifica os agendamentos a cada 1 minuto
+setInterval(checkAndFeed, 60000); // Verifica a cada 1 minuto
 
 // Rota para obter o nível de ração (protegida por autenticação)
 app.get('/api/food-level', authenticateToken, async (req, res) => {
@@ -131,13 +128,27 @@ app.post('/api/feed', authenticateToken, async (req, res) => {
     await pool.query('INSERT INTO nivel_racao (nivel) VALUES($1)', [currentFoodLevel]);
 
     // Envia o comando para o ESP32 via HTTP para girar o servo motor
-    const esp32Ip = 'http://192.168.86.8/liberar';  // IP do ESP32
+    const esp32Ip = 'http://192.168.1.7/liberar';  // IP do ESP32
     await axios.get(esp32Ip);  // Envia a requisição para liberar a ração no ESP32
 
     res.json({ message: 'Ração liberada com sucesso!', level: currentFoodLevel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erro ao liberar ração' });
+  }
+});
+
+// Rota para listar agendamentos (ajuste para listar com o status 'liberado' ou 'pendente')
+app.get('/api/schedules', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM horarios_programados ORDER BY horario ASC');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Nenhum horário encontrado' });
+    }
+    res.json({ schedules: result.rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao buscar horários' });
   }
 });
 
@@ -158,20 +169,6 @@ app.post('/api/schedules', authenticateToken, async (req, res) => {
   }
 });
 
-// Rota para listar horários programados
-app.get('/api/schedules', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM horarios_programados ORDER BY horario ASC');
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Nenhum horário encontrado' });
-    }
-    res.json({ schedules: result.rows });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erro ao buscar horários programados' });
-  }
-});
-
 // Rota para atualizar horário programado
 app.put('/api/schedules', authenticateToken, async (req, res) => {
   const { schedule_time, id } = req.body;
@@ -182,7 +179,7 @@ app.put('/api/schedules', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query('SELECT * FROM horarios_programados WHERE id = $1', [id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Horário não encontrado para atualização!' });
     }

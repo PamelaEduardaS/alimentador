@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" >
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,9 +10,17 @@
   />
   <link rel="stylesheet" href="/assets/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <style>
+    .alert {
+      width: 100%;
+      max-width: 400px; /* Tamanho máximo da mensagem */
+      margin: 0 auto;
+      margin: 10px auto 0 auto;   /* Centraliza horizontalmente */
+    }
+  </style>
 </head>
 <body class="home">
-  <div class="container mt-4">
+  <div class="container mt-4 text-center">
     <h1 class="mb-4">Controle do Alimentador Automático</h1>
 
     <div class="mb-4">
@@ -35,7 +43,9 @@
       <button id="btnFeedNow" class="btn btn-success btn-lg">
         Liberar ração agora
       </button>
-      <div id="feedResult" class="mt-3 alert d-none" role="alert"></div>
+      <div id="feedResult" class="mt-3 alert d-none" role="alert">
+        Ração liberada com sucesso!
+      </div>
     </div>
 
     <!-- Lista de horários programados -->
@@ -47,7 +57,7 @@
     <!-- Formulário para adicionar/editar horários -->
     <div class="mt-4">
       <h4>Adicionar / Editar Horário</h4>
-      <form id="scheduleForm" class="row g-3 align-items-center">
+      <form id="scheduleForm" class="row g-3 align-items-center justify-content-center">
         <div class="col-auto">
           <input
             type="text"

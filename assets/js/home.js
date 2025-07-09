@@ -86,9 +86,10 @@
 
       // Exibe data e hora formatadas
       const formattedDate = new Date(schedule.horario).toLocaleString('pt-BR', {
-        timeZone: 'UTC',
+        timeZone: 'America/Sao_Paulo',
       });
 
+      li.textContent = `${formattedDate} - Status: ${schedule.status === 'liberado' ? 'Concluído' : 'Pendente'}`; // Exibe o status
       li.textContent = formattedDate; // Exibe a data formatada
 
       // Botões de editar e excluir
